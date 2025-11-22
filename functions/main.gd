@@ -16,7 +16,7 @@ var ads_animation:String = "ads"
 @onready var ui = $"../Control"
 
 var ammo = 7
-var damage = 50
+var damage = 50  # This will be updated from backend values later
 var target
 var shots = 0
 var ads = false
@@ -24,13 +24,40 @@ var reload_finished = true
 var inspecting = false
 var is_nuke = false
 
+# Backend-synced values that will override client values
+var backend_bullet_damage = 50
+var backend_movement_speed = 10
+
 func _ready():
 	var enemies = get_tree().get_nodes_in_group("enemy")
 	for enemy in enemies:
 		enemy.connect("killed", Callable(self, "_on_enemy_killed"))
 
+# Function to handle when player gets hit by an enemy
+func player_hit(damage_amount: int):
+	var player_node = get_tree().get_first_node_in_group("player")
+	if player_node:
+		player_node.health -= damage_amount
+		if player_node.health <= 0:
+			player_node.health = 0
+			# Handle player death
+			print("Player has been killed by enemy!")
+			# You can add respawn logic or game over screen here
+
 func _on_enemy_killed():
 	ui.increment_score()
+
+# Function to update game values from backend
+func update_from_backend(new_bullet_damage: int, new_movement_speed: int):
+	backend_bullet_damage = new_bullet_damage
+	backend_movement_speed = new_movement_speed
+	# Update the damage value from backend
+	damage = backend_bullet_damage
+	# Note: movement speed would be updated in player.gd
+
+# Function to verify if damage is legitimate
+func is_damage_valid() -> bool:
+	return damage == 50  # The expected backend value for bullet damage
 
 func _input(event):
 	if event.is_action_pressed("ui_cancel"):
@@ -61,6 +88,8 @@ func shoot():
 				if aimcast.is_colliding():
 					target = aimcast.get_collider()
 					if target.is_in_group("enemy"):
+						# Apply damage, which should match verified backend value
+						# In the future, this will be verified against blockchain value
 						target.health -= damage
 			if ammo == 0:
 				dryFireSound.playing = true
