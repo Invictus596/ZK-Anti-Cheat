@@ -9,7 +9,7 @@
 [ext_resource type="AudioStream" uid="uid://5wgq6fdynnmo" path="res://assets/762x39 Single Isolated WAV.wav" id="4_4aekv"]
 [ext_resource type="Texture2D" uid="uid://0oc3jutq2mk6" path="res://assets/pistol_2.png" id="5_6luvn"]
 [ext_resource type="AudioStream" uid="uid://dagj2gp0b4x1i" path="res://assets/9mm Pistol Dry Fire.wav" id="5_gycuy"]
-[ext_resource type="Texture2D" uid="uid://cntslapbyii88" path="res://assets/pistol_3.png" id="6_rj0vp"]
+[ext_resource type="Texture2D" uid="uid://c7e0epa30434t" path="res://assets/pistol_3.png" id="6_rj0vp"]
 [ext_resource type="Texture2D" uid="uid://bxcl6r7er3c8l" path="res://assets/pistol_4.png" id="7_c2ojs"]
 [ext_resource type="Texture2D" uid="uid://cosi2kbgi3w36" path="res://assets/pistol_5.png" id="8_hih45"]
 [ext_resource type="Texture2D" uid="uid://bhi2bj4bv0gdd" path="res://assets/pistol_6.png" id="9_jj1xa"]

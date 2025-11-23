@@ -16,7 +16,7 @@ var ads_animation:String = "ads"
 @onready var ui = $"../Control"
 
 var ammo = 7
-var damage = 50
+var damage = 100
 var target
 var shots = 0
 var ads = false
@@ -24,19 +24,33 @@ var reload_finished = true
 var inspecting = false
 var is_nuke = false
 
+# ==== NEW: Shot Sender ====
+const ShotSender = preload("res://dojo/shot_sender.gd")
+var shot_sender
+
+
 func _ready():
+	# Connect enemy kill signals
 	var enemies = get_tree().get_nodes_in_group("enemy")
 	for enemy in enemies:
 		enemy.connect("killed", Callable(self, "_on_enemy_killed"))
 
+	# Initialize the shot sender
+	shot_sender = ShotSender.new()
+	add_child(shot_sender)
+
+
 func _on_enemy_killed():
 	ui.increment_score()
+
 
 func _input(event):
 	if event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
 
 func nuke():
 	if ads:
@@ -47,81 +61,92 @@ func nuke():
 		nuke_animplayer.play("tablet")
 		is_nuke = true
 
+
 func shoot():
 	if is_nuke:
-		pass
-	else:
-		if reload_finished and not inspecting:
-			if ammo != 0:
-				animplayer.stop()
-				animplayer.play(fire_animation)
-				firesound.playing = true
-				shots += 1
-				ammo -= 1
-				if aimcast.is_colliding():
-					target = aimcast.get_collider()
-					if target.is_in_group("enemy"):
-						target.health -= damage
-			if ammo == 0:
-				dryFireSound.playing = true
+		return
+	
+	if reload_finished and not inspecting:
+		if ammo != 0:
+			animplayer.stop()
+			animplayer.play(fire_animation)
+			firesound.playing = true
+			shots += 1
+			ammo -= 1
+
+			# Hit detection
+			if aimcast.is_colliding():
+				target = aimcast.get_collider()
+				if target.is_in_group("enemy"):
+					target.health -= damage
+
+			# ==== NEW: SEND SHOT TO PYTHON RELAY ====
+			var pos = aimcast.global_transform.origin
+			var dir = -aimcast.global_transform.basis.z
+			var recoil = 1.0
+			shot_sender.send_shot(pos, dir, recoil)
+
 		else:
-			pass
+			dryFireSound.playing = true
+
 
 func reload():
 	if is_nuke:
+		return
+	
+	if inspecting:
+		return
+	elif ammo == 0:
+		animplayer.play(reload_animation)
+		ammo += 7
+		shots = 0
+	elif ammo == 7:
 		pass
 	else:
-		if inspecting:
-			pass
-		elif ammo == 0:
-			animplayer.play(reload_animation)
-			ammo += 7
-			shots = 0
-		elif ammo == 7:
-			pass
-		else:
-			animplayer.play(reload_animation)
-			ammo += shots
-			shots = 0
+		animplayer.play(reload_animation)
+		ammo += shots
+		shots = 0
+
 
 func idle():
 	if is_nuke:
-		pass
-	else:
-		if animplayer.is_playing() == false:
-			animplayer.play(idle_animation)
+		return
+	
+	if animplayer.is_playing() == false:
+		animplayer.play(idle_animation)
 
 
 func draw():
 	if is_nuke:
-		pass
-	else:	
-		if ads:
-			pass
-		elif !reload_finished:
-			pass
-		else:
-			if ammo == 0:
-				animplayer.stop()
-				animplayer.play(draw_empty_animation)
-			else:
-				animplayer.stop()
-				animplayer.play(draw_animation)
+		return
+
+	if ads:
+		return
+	if not reload_finished:
+		return
+
+	if ammo == 0:
+		animplayer.stop()
+		animplayer.play(draw_empty_animation)
+	else:
+		animplayer.stop()
+		animplayer.play(draw_animation)
+
 
 func ads_func():
 	if is_nuke:
+		return
+
+	if ads and reload_finished:
+		ads = false
+		animplayer.play_backwards(ads_animation)
+	elif ads and not reload_finished or inspecting:
+		pass
+	elif not ads and not reload_finished or inspecting:
 		pass
 	else:
-		if ads and reload_finished:
-			ads = false
-			animplayer.play_backwards(ads_animation)
-		elif ads and not reload_finished or inspecting:
-			pass
-		elif not ads and not reload_finished or inspecting:
-			pass
-		else:
-			ads = true
-			animplayer.play(ads_animation)
+		ads = true
+		animplayer.play(ads_animation)
 
 
 func _on_animplayer_animation_finished(anim_name):
@@ -129,7 +154,6 @@ func _on_animplayer_animation_finished(anim_name):
 		reload_finished = true
 	elif anim_name == draw_animation or anim_name == draw_empty_animation:
 		inspecting = false
-
 
 
 func _on_animplayer_animation_started(anim_name):
