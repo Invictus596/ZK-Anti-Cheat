@@ -1,62 +1,138 @@
-<div align="center">
+# ZK‑Sniper / Obsidian Anti‑Cheat
 
-# 🎯 ZK-Sniper
-### The First FPS with Non-Invasive ZK Anti-Cheat
+![Starknet](https://img.shields.io/badge/Starknet-Powered-blue?logo=starknet) ![Godot](https://img.shields.io/badge/Godot-4.3-478cbf?logo=godot-engine\&logoColor=white) ![Cairo](https://img.shields.io/badge/Cairo-1.0-orange) ![License](https://img.shields.io/badge/License-MIT-green)
 
-![Starknet](https://img.shields.io/badge/Starknet-Powered-blue?logo=starknet)
-![Godot](https://img.shields.io/badge/Godot-4.3-478cbf?logo=godot-engine&logoColor=white)
-![Cairo](https://img.shields.io/badge/Cairo-1.0-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
+> **Non‑invasive ZK anti‑cheat for FPS games — move critical game rules on‑chain.**
 
-
-<p align="center">
-  <img src="path/to/your/screenshot_or_gif.gif" alt="Gameplay Demo" width="600">
-  <br>
-  <!-- <em>(Replace this line with a GIF of your gameplay!)</em> -->
-</p>
-
-</div>
+**Prize:** 🏆 Second Place — HackPrix Buildwith Hackathon
 
 ---
 
-## 🛑 The Problem
-Current industry standards for anti-cheat (Vanguard, Ricochet, Easy Anti-Cheat) rely on an **invasive philosophy**:
-1.  **Kernel Access (Ring 0):** They run at the highest privilege level of your OS.
-2.  **Privacy Nightmare:** They scan your entire hard drive and memory.
-3.  **Vulnerable:** Despite this, cheaters bypass them using hardware cheats (DMA).
+## What this project solves
 
-## ✅ Our Solution: "Proof of Shot"
-**ZK-Sniper** moves the anti-cheat logic from the Client's Kernel to the **Starknet Blockchain**. We don't scan your files; we verify the **Physics** of your actions.
+Modern anti‑cheat systems often require deep OS access (kernel‑level drivers) that invade user privacy and are still bypassed by hardware cheats. **ZK‑Sniper** (aka *Obsidian Anti‑Cheat*) avoids invasive monitoring by making the game’s core rules verifiable on a Starknet Layer‑2 using Cairo smart contracts.
 
-* **Client Side:** The game generates a cryptographically secure proof that the shot followed the laws of physics (Recoil, Cooldown, Vector).
-* **Chain Side:** The Starknet contract acts as the "Judge."
-    * Valid Proof = Hit Registered + Score Updated.
-    * Invalid Proof (Aimbot/No-Recoil) = **Transaction Reverted.**
-
-> *"We verify the shot, not the user's operating system."*
+**Key idea:** Every important action (movement, shot, damage) becomes a cryptographically verifiable transaction. If an action violates the on‑chain physics or rules, the contract reverts the transaction and the state update never occurs.
 
 ---
 
-## 🏗️ Architecture
+## Highlights
 
-We utilize the **Dojo Engine** to sync game state on-chain. Here is how the data flows:
+* No kernel drivers or file scanning — privacy preserved.
+* Game physics, damage, and scoring enforced as immutable Cairo contracts.
+* Local execution with `katana --dev` and `starkli` provides trustless, auditable verification.
+* Torii indexer syncs on‑chain state to Godot for real‑time UI.
+
+---
+
+## How it works (short)
+
+1. Player input in Godot triggers a `Proof of Action` (shot/movement payload).
+2. The client or local relay signs and submits a transaction (`starkli invoke` or `server.py`).
+3. Katana executes the Cairo contract which asserts game invariants (e.g. `speed < 10`, `recoil > 0`).
+4. Valid tx → state update and Torii indexes the new score. Invalid tx → **REVERT**.
+5. Godot polls Torii (GraphQL) and updates the scoreboard.
+
+---
+
+## Architecture
+
+* **Godot 4.x** — game client and local UI.
+* **Katana (devnet)** — local sequencer / executor for Cairo systems.
+* **Cairo Contracts** — immutable game rules & player models (deployed via `sozo`).
+* **Starkli CLI / Python Relay (`server.py`)** — signs and submits player transactions.
+* **Torii Indexer** — indexes world state and exposes a GraphQL endpoint to Godot.
+
+---
+
+## Components & Status
+
+| Component           |            Role | Notes                                             |
+| ------------------- | --------------: | ------------------------------------------------- |
+| Katana              | local sequencer | RPC: `127.0.0.1:5050`                             |
+| Cairo systems       |      game rules | deploy with `sozo build && sozo migrate`          |
+| starkli / server.py |    signer/relay | `starkli` invoked by Godot or `python3 server.py` |
+| Torii               |         indexer | `torii --world <WORLD_ADDRESS>`                   |
+
+---
+
+## Execution flow (sequence)
 
 ```mermaid
 sequenceDiagram
-    participant P as Player (Godot)
-    participant K as Katana (Sequencer)
-    participant C as Cairo Contract (Judge)
-    participant T as Torii (Indexer)
-
-    P->>P: Player Shoots (Input: Angle, Recoil)
-    P->>K: Send Transaction: shoot(input_data)
-    K->>C: Execute System
-    C->>C: Verify Physics (assert recoil > 0)
-    alt Physics Valid
-        C->>C: Update Kill Count
-        C-->>K: State Change Accepted
-    else Physics Invalid (Cheat)
-        C-->>K: PANIC: REVERT TRANSACTION
+    Player->>Godot: Input: Fire
+    Godot->>Starkli: OS.execute("starkli invoke shoot_target")
+    Starkli->>Katana: Signed Tx
+    Katana->>Cairo: Execute `shoot_target`
+    alt Valid
+        Cairo->>Katana: Accept state diff
+        Katana->>Torii: Index state
+        Torii->>Godot: Score via GraphQL
+    else Invalid
+        Cairo-->>Katana: REVERT
     end
-    K->>T: State Update
-    T-->>P: Sync Scoreboard
+```
+
+---
+
+## Quickstart (WSL)
+
+> Run each command in its own terminal tab (order matters):
+
+**Tab 1 — Katana**
+
+```bash
+katana --dev
+# RPC available at 127.0.0.1:5050
+```
+
+**Tab 2 — Deploy Cairo systems**
+
+```bash
+sozo build && sozo migrate
+# Capture WORLD_ADDRESS from migration output
+```
+
+**Tab 3 — Torii indexer**
+
+```bash
+torii --world 0xWORLD_ADDRESS
+```
+
+**Tab 4 — Relay (optional)**
+
+```bash
+python3 server.py  # runs on 0.0.0.0:3000
+```
+
+**Godot (frontend)**
+
+* Open project in Godot 4.x
+* Initialize player entity (Spawn action — default `P`)
+* Run and test: Left‑click to shoot. Look for: `BLOCKCHAIN VERIFIED: Tx Success.` in output.
+
+---
+
+## Notes & best practices
+
+* Keep private keys local. `starkli` or the relay must sign from a secure environment variable or keystore.
+* Design contracts with clear, minimal assertions to avoid false positives.
+* Use Torii GraphQL polling (1s) for near‑real‑time scoreboard updates in Godot.
+
+
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contributors
+
+Team Obsidian — HackPrix Buildwith Hackathon
+
+---
+
+
